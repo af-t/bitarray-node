@@ -1,0 +1,15 @@
+{
+  "name": "bitarray-node",
+  "version": "1.0.0",
+  "description": "implementation of bit value storage by exploiting native performance",
+  "main": "bitarray.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "install": "node-gyp rebuild"
+  },
+  "keywords": [],
+  "author": "af-t",
+  "license": "MIT",
+  "type": "commonjs",
+  "gypfile": true
+}
