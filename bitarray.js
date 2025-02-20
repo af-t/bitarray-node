@@ -5,38 +5,36 @@ const untitled_2 = new Error('Size mismatch or invalid type');
 
 const backend = require('./build/Release/bitarray.node');
 
+const registry = new FinalizationRegistry(key => {
+  try {
+    backend.dispose(key);
+  } catch {}
+});
+
 class BitArray {
   #disposed = false;
   #key;
 
   constructor(size, proxy = false) {
-    if (!Number.isInteger(size) || size < 0) throw untitled_0;
+    if (!Number.isInteger(size) || size < 0 || size > 0xFFFFFFFF) throw untitled_0;
     this.#key = backend.create(size);
+    registry.register(this, this.#key, this);
 
     if (proxy) return new Proxy([], {
       get: (_, p) => {
-        let ret;
-        try {
-          const int = Number(p);
-          if (Number.isInteger(int)) ret = backend.get(this.#key, int);
-          else throw 1;
-        } catch {
-          ret = this[p]?.bind ? this[p].bind(this) : this[p];
-        } finally {
-          return ret;
+        const int = Number(p);
+        if (Number.isInteger(int)) {
+          return backend.get(this.#key, int);
         }
+        return this[p]?.bind ? this[p].bind(this) : this[p];
       },
       set: (_, p, v) => {
-        try {
-          const int = Number(p);
-          if (Number.isInteger(int)) {
-            backend.set(this.#key, int, v);
-            return true;
-          }
-          throw 1;
-        } catch {
-          return false;
+        const int = Number(p);
+        if (Number.isInteger(int)) {
+          backend.set(this.#key, int, v);
+          return true;
         }
+        return false;
       }
     });
   }
@@ -54,7 +52,7 @@ class BitArray {
   }
 
   resize(size) {
-    if (!Number.isInteger(size) || size < 0) throw untitled_0;
+    if (!Number.isInteger(size) || size < 0 || size > 0xFFFFFFFF) throw untitled_0;
     this.#isDisposed();
     backend.resize(this.#key, size);
   }
@@ -124,16 +122,23 @@ class BitArray {
 
   static deserialize(serialized) {
     const instance = new BitArray(1);
-    const key = backend.deserialize(serialized);
-    backend.dispose(instance.#key);
-
-    instance.#key = key;
-    return instance;
+    try {
+      const key = backend.deserialize(serialized);
+      registry.unregister(instance);
+      backend.dispose(instance.#key);
+      instance.#key = key;
+      registry.register(instance, key, instance);
+      return instance;
+    } catch (err) {
+      instance.dispose();
+      throw err;
+    }
   }
   static from(serialized) { return BitArray.deserialize(serialized); }
 
   dispose() {
     this.#disposed = true;
+    registry.unregister(this);
     backend.dispose(this.#key);
   }
 

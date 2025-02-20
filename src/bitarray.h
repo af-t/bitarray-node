@@ -9,7 +9,7 @@
 
 class BitArray {
 private:
-    std::vector<uint8_t> data; // Internal storage for bits
+    std::vector<uint64_t> data; // Internal storage for bits
     size_t bits;               // Total number of bits
     bool disposed;             // Whether the instance is disposed
 
@@ -19,12 +19,21 @@ private:
     // Helper function to calculate byte index and bit offset
     std::pair<size_t, size_t> getPos(size_t pos) const;
 
+    // Helper function to clear unused padding bits in the last word
+    void clearUnusedBits();
+
 public:
     // Constructor
     explicit BitArray(size_t size);
 
     // Destructor
     ~BitArray();
+
+    // Rule of Five support for Move operations
+    BitArray(BitArray&&) noexcept = default;
+    BitArray& operator=(BitArray&&) noexcept = default;
+    BitArray(const BitArray&) = default;
+    BitArray& operator=(const BitArray&) = default;
 
     // Dispose the instance
     void dispose();
@@ -39,7 +48,7 @@ public:
     void resize(size_t newSize);
 
     // Perform bitwise operations
-    void bitwiseOp(const BitArray& other, std::function<uint8_t(uint8_t, uint8_t)> op);
+    void bitwiseOp(const BitArray& other, std::function<uint64_t(uint64_t, uint64_t)> op);
 
     // Specific bitwise operations
     void bitwiseAnd(const BitArray& other);
