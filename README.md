@@ -15,7 +15,7 @@ npm install af-t/bitarray-node
 
 ## Usage
 Import and use it in your Node.js code:
-```
+```javascript
 const BitArray = require('bitarray-node');
 
 // Create a BitArray with 8 bits
