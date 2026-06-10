@@ -20,23 +20,37 @@ class BitArray {
     this.#key = backend.create(size);
     registry.register(this, this.#key, this);
 
-    if (proxy) return new Proxy([], {
-      get: (_, p) => {
+    if (proxy) {
+      const isIndex = (p) => {
+        if (typeof p !== 'string') return false;
         const int = Number(p);
-        if (Number.isInteger(int)) {
-          return backend.get(this.#key, int);
+        return Number.isInteger(int) && String(int) === p && int >= 0;
+      };
+
+      return new Proxy(this, {
+        get: (target, p) => {
+          if (isIndex(p)) {
+            return backend.get(this.#key, Number(p));
+          }
+          const val = Reflect.get(target, p);
+          if (typeof val === 'function') {
+            return val.bind(target);
+          }
+          return val;
+        },
+        set: (target, p, v) => {
+          if (isIndex(p)) {
+            backend.set(this.#key, Number(p), v);
+            return true;
+          }
+          if (p === 'length') {
+            target.resize(v);
+            return true;
+          }
+          return Reflect.set(target, p, v);
         }
-        return this[p]?.bind ? this[p].bind(this) : this[p];
-      },
-      set: (_, p, v) => {
-        const int = Number(p);
-        if (Number.isInteger(int)) {
-          backend.set(this.#key, int, v);
-          return true;
-        }
-        return false;
-      }
-    });
+      });
+    }
   }
 
   #isDisposed() { if (this.#disposed) throw untitled_1; }
@@ -137,9 +151,12 @@ class BitArray {
   static from(serialized) { return BitArray.deserialize(serialized); }
 
   dispose() {
+    if (this.#disposed) return;
     this.#disposed = true;
     registry.unregister(this);
-    backend.dispose(this.#key);
+    try {
+      backend.dispose(this.#key);
+    } catch {}
   }
 
   get size() { return backend.getSize(this.#key); }
@@ -147,7 +164,14 @@ class BitArray {
 
   *[Symbol.iterator]() {
     const length = this.size;
-    for (let i = 0; i < length; i++) yield backend.get(this.#key, i);
+    const chunkSize = 1024;
+    for (let i = 0; i < length; i += chunkSize) {
+      const end = Math.min(i + chunkSize - 1, length - 1);
+      const chunk = backend.getRange(this.#key, i, end);
+      for (let j = 0; j < chunk.length; j++) {
+        yield chunk[j];
+      }
+    }
   }
 }
 

@@ -6,6 +6,20 @@
 #include <functional>
 #include <limits>
 
+#ifdef _MSC_VER
+#include <intrin.h>
+inline int ctzll(unsigned __int64 value) {
+    unsigned long index;
+    return _BitScanForward64(&index, value) ? index : 64;
+}
+inline int popcntll(unsigned __int64 value) {
+    return __popcnt64(value);
+}
+#else
+#define ctzll(x) __builtin_ctzll(x)
+#define popcntll(x) __builtin_popcountll(x)
+#endif
+
 // Constructor
 BitArray::BitArray(size_t size) : bits(size), disposed(false) {
     if (size > std::numeric_limits<size_t>::max() - 63) {
@@ -119,14 +133,15 @@ void BitArray::bitwiseNot() {
 // Set multiple bits at once
 void BitArray::setBatch(const std::vector<size_t>& positions, bool value) {
     if (disposed) throw std::runtime_error("Storage is disposed");
+    for (auto pos : positions) {
+        if (pos >= bits) throw std::out_of_range("Invalid position: " + std::to_string(pos));
+    }
     if (value) {
         for (auto pos : positions) {
-            if (pos >= bits) throw std::out_of_range("Invalid position: " + std::to_string(pos));
             data[pos / 64] |= (static_cast<uint64_t>(1) << (pos % 64));
         }
     } else {
         for (auto pos : positions) {
-            if (pos >= bits) throw std::out_of_range("Invalid position: " + std::to_string(pos));
             data[pos / 64] &= ~(static_cast<uint64_t>(1) << (pos % 64));
         }
     }
@@ -205,7 +220,7 @@ std::vector<bool> BitArray::getRange(size_t min, size_t max) const {
 size_t BitArray::findFirst() const {
     for (size_t i = 0; i < data.size(); ++i) {
         if (data[i] != 0) {
-            return i * 64 + __builtin_ctzll(data[i]);
+            return i * 64 + ctzll(data[i]);
         }
     }
     return static_cast<size_t>(-1); // Return -1 if no bit is set
@@ -215,7 +230,7 @@ size_t BitArray::findFirst() const {
 size_t BitArray::countSetBits() const {
     size_t count = 0;
     for (size_t i = 0; i < data.size(); ++i) {
-        count += __builtin_popcountll(data[i]);
+        count += popcntll(data[i]);
     }
     return count;
 }
@@ -228,7 +243,7 @@ size_t BitArray::countBytesUsed() const {
         uint64_t word = data[i];
         // Branchless bitwise parallel check for non-zero bytes in a 64-bit word
         uint64_t temp = word | ((word & 0x7f7f7f7f7f7f7f7fULL) + 0x7f7f7f7f7f7f7f7fULL);
-        count += __builtin_popcountll(temp & 0x8080808080808080ULL);
+        count += popcntll(temp & 0x8080808080808080ULL);
     }
     return count;
 }
